@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f0eee9" />
+  <title>불멍 · 잠시 쉬어가기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <header class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">FIRE THERAPY</p>
+      <h1 id="page-title">불을 바라보며 잠시 쉬어가요.</h1>
+      <p class="intro-copy">화면을 누르면 장작이 살짝 살아나고 불씨가 번집니다. 아무것도 하지 않아도 괜찮아요.</p>
+    </header>
+
+    <section class="therapy-layout" aria-label="불멍 테라피">
+      <div class="visual-column">
+        <div
+          class="canvas-frame"
+          id="fire-canvas-wrap"
+          role="button"
+          tabindex="0"
+          aria-label="불씨 깨우기. Enter 또는 Space 키를 눌러 불꽃을 키울 수 있습니다."
+          aria-keyshortcuts="Enter Space"
+        >
+          <div id="fire-canvas"></div>
+          <div class="canvas-hint" aria-hidden="true">
+            <span class="hint-dot"></span>
+            화면을 눌러 불씨를 깨워보세요
+          </div>
+        </div>
+      </div>
+
+      <aside class="controls" aria-label="불멍 설정">
+        <div class="control-group">
+          <div class="group-heading">
+            <h2>불의 세기</h2>
+            <span id="intensity-value" class="value-label">잔잔하게</span>
+          </div>
+          <div class="segment" role="group" aria-label="불의 세기 선택">
+            <button type="button" class="segment-btn is-selected" data-level="calm" aria-pressed="true">잔잔</button>
+            <button type="button" class="segment-btn" data-level="warm" aria-pressed="false">보통</button>
+            <button type="button" class="segment-btn" data-level="deep" aria-pressed="false">깊게</button>
+          </div>
+        </div>
+
+        <div class="divider" role="presentation"></div>
+
+        <div class="control-group">
+          <div class="group-heading">
+            <h2>머무는 시간</h2>
+            <span id="timer-label" class="value-label tabular">자유롭게</span>
+          </div>
+          <div class="segment" role="group" aria-label="불멍 시간 선택">
+            <button type="button" class="timer-btn is-selected" data-minutes="0" aria-pressed="true">∞</button>
+            <button type="button" class="timer-btn" data-minutes="5" aria-pressed="false">5분</button>
+            <button type="button" class="timer-btn" data-minutes="10" aria-pressed="false">10분</button>
+            <button type="button" class="timer-btn" data-minutes="20" aria-pressed="false">20분</button>
+          </div>
+          <p class="helper">시간이 끝나도 화면은 갑자기 멈추지 않고 천천히 잦아듭니다.</p>
+        </div>
+
+        <div class="divider" role="presentation"></div>
+
+        <div class="session-actions">
+          <button id="pause-btn" class="button button-primary" type="button" aria-pressed="false">
+            <span class="button-icon" aria-hidden="true">Ⅱ</span>
+            잠시 멈추기
+          </button>
+          <button id="reset-btn" class="button button-secondary" type="button">처음으로</button>
+        </div>
+
+        <p id="status-text" class="status" role="status" aria-live="polite">불이 잔잔하게 타고 있어요.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@2.3.4/lib/p5.min.js"></script>
+  <script src="./fire-sketch.js"></script>
+</body>
+</html>
