@@ -37,9 +37,6 @@
   --mountain-mid: #1b3043;
   --mountain-near: #122331;
   --night-ground: #121b21;
-  --tent-fabric: #314150;
-  --tent-shadow: #202d38;
-  --tent-light: #b9824c;
 
   --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-symmetric: cubic-bezier(0.65, 0, 0.35, 1);

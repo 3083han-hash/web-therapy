@@ -63,10 +63,7 @@
         mountainFar: css('--mountain-far'),
         mountainMid: css('--mountain-mid'),
         mountainNear: css('--mountain-near'),
-        ground: css('--night-ground'),
-        tent: css('--tent-fabric'),
-        tentShadow: css('--tent-shadow'),
-        tentLight: css('--tent-light')
+        ground: css('--night-ground')
       };
       stars = createStars(28);
 
@@ -89,7 +86,7 @@
       elapsed += dt;
 
       const profile = intensityMap[state.intensity];
-      state.boost = Math.max(0, state.boost - dt * 0.55);
+      state.boost = Math.max(0, state.boost - dt * 0.38);
       if (!state.paused) {
         state.blowStrength = micController?.getStrength() ?? 0;
       }
@@ -104,12 +101,13 @@
       const energy = p.constrain(restingEnergy + windEnergy, 0, profile.flame * 1.6);
       const speed = profile.speed * (1 + blowStrength * 0.25) * (state.reducedMotion ? 0.55 : 1);
       const motionAmount = (state.reducedMotion ? 0.22 : 1) * (1 + blowStrength * 0.22);
+      const touchStrength = p.constrain(state.boost / 0.7, 0, 1);
 
       soundController?.setFireState(state.intensity, blowStrength);
       drawBackground(p, palette, stars, elapsed, speed, motionAmount, energy);
       drawGroundGlow(p, palette, energy);
       drawLogs(p, palette, energy);
-      drawFlames(p, palette, elapsed, energy, speed, motionAmount, blowStrength);
+      drawFlames(p, palette, elapsed, energy, speed, motionAmount, blowStrength, touchStrength);
 
       if (!state.paused) {
         const sparkAmount = state.reducedMotion ? 0.25 : 1;
@@ -206,17 +204,30 @@
     drawClouds(p, palette, t, motionAmount);
     drawStars(p, stars, t, motionAmount);
     drawMountains(p, palette);
-    drawTent(p, palette, energy);
 
     const pulse = 0.5 + Math.sin(t * 0.8 * speed) * 0.04 * motionAmount;
+    const size = Math.min(p.width, p.height);
+    drawRadialGlow(ctx, p.width * 0.5, p.height * 0.71,
+      size * (0.38 + energy * 0.07),
+      0.14 + pulse * 0.04 + energy * 0.04,
+      palette.outer
+    );
+    drawRadialGlow(ctx, p.width * 0.5, p.height * 0.735,
+      size * (0.19 + energy * 0.035),
+      0.22 + energy * 0.075,
+      palette.mid
+    );
+  }
+
+  function drawRadialGlow(ctx, x, y, radius, alpha, color) {
     ctx.save();
-    ctx.globalAlpha = 0.07 + pulse * 0.024 + Math.max(0, energy - 0.75) * 0.025;
-    const glowRadius = Math.min(p.width, p.height) * (0.34 + energy * 0.055);
-    const rg = ctx.createRadialGradient(p.width * 0.5, p.height * 0.72, 0, p.width * 0.5, p.height * 0.72, glowRadius);
-    rg.addColorStop(0, palette.outer);
-    rg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, p.width, p.height);
+    ctx.globalAlpha = alpha;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.32, color);
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     ctx.restore();
   }
 
@@ -271,33 +282,15 @@
     p.endShape(p.CLOSE);
   }
 
-  function drawTent(p, palette, energy) {
-    const size = Math.min(p.width, p.height);
-    const cx = p.width * (p.width < 600 ? 0.2 : 0.19);
-    const baseY = p.height * 0.72;
-    const tentW = size * 0.22;
-    const tentH = size * 0.13;
-    p.push();
-    p.noStroke();
-    p.fill(palette.tentShadow);
-    p.triangle(cx - tentW * 0.62, baseY, cx, baseY - tentH, cx + tentW * 0.62, baseY);
-    p.fill(palette.tent);
-    p.triangle(cx - tentW * 0.48, baseY, cx, baseY - tentH * 0.9, cx + tentW * 0.12, baseY);
-    p.fill(palette.tentLight);
-    p.drawingContext.globalAlpha = 0.18 + Math.min(0.12, energy * 0.04);
-    p.triangle(cx - tentW * 0.03, baseY - 2, cx, baseY - tentH * 0.78, cx + tentW * 0.12, baseY - 2);
-    p.pop();
-  }
-
   function drawGroundGlow(p, palette, energy) {
     const ctx = p.drawingContext;
     const cx = p.width * 0.5;
     const cy = p.height * 0.79;
     ctx.save();
-    ctx.globalAlpha = 0.07 + 0.075 * energy;
+    ctx.globalAlpha = 0.15 + 0.115 * energy;
     ctx.translate(cx, cy);
-    ctx.scale(1.65, 0.52);
-    const radius = Math.min(p.width, p.height) * (0.23 + energy * 0.035);
+    ctx.scale(1.78, 0.54);
+    const radius = Math.min(p.width, p.height) * (0.24 + energy * 0.048);
     const rg = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     rg.addColorStop(0, palette.mid);
     rg.addColorStop(0.36, palette.outer);
@@ -346,68 +339,80 @@
     p.pop();
   }
 
-  function drawFlames(p, palette, t, energy, speed, motionAmount, blowStrength) {
+  function drawFlames(p, palette, t, energy, speed, motionAmount, blowStrength, touchStrength) {
     const cx = p.width * 0.5;
     const baseY = p.height * 0.765;
     const size = Math.min(p.width, p.height);
-
     const outerH = size * 0.44 * energy;
     const midH = size * 0.34 * energy;
     const coreH = size * 0.22 * energy;
-
-    const irregular = p.noise(t * 0.72 * speed + 14.7) - 0.5;
-    const sway = (
-      Math.sin(t * 1.8 * speed) * size * 0.012
-      + irregular * size * 0.016
-    ) * motionAmount;
-    const breathe = 1 + (
-      Math.sin(t * 2.1 * speed) * 0.025
-      + irregular * 0.07
-    ) * motionAmount;
+    const motionSpeed = speed * (0.62 + blowStrength * 0.28 + touchStrength * 0.22);
+    const swayRange = size * (0.024 + blowStrength * 0.018 + touchStrength * 0.012);
+    const sway = (p.noise(t * 0.38 * motionSpeed + 8.4) - 0.5) * swayRange * 2 * motionAmount;
     const windWidth = 1 + blowStrength * 0.12;
-    const outerShape = 1 + (p.noise(t * 0.42 * speed + 3.2) - 0.5) * 0.12 * motionAmount;
-    const midShape = 1 + (p.noise(t * 0.5 * speed + 21.4) - 0.5) * 0.14 * motionAmount;
-    const coreShape = 1 + (p.noise(t * 0.58 * speed + 46.8) - 0.5) * 0.1 * motionAmount;
+    const response = 1 + touchStrength * 0.08 + blowStrength * 0.06;
 
-    drawFlameShape(p, cx + sway, baseY, size * 0.28 * breathe * windWidth * outerShape, outerH * breathe / outerShape, palette.outer, t, 0.0, motionAmount);
-    drawFlameShape(p, cx - sway * 0.3, baseY + 4, size * 0.20 * breathe * windWidth * midShape, midH * breathe / midShape, palette.mid, t, 1.7, motionAmount);
-    drawFlameShape(p, cx + sway * 0.2, baseY + 9, size * 0.11 * breathe * windWidth * coreShape, coreH * breathe / coreShape, palette.core, t, 3.1, motionAmount);
+    drawFlameLayer(p, cx + sway, baseY, size * 0.28 * windWidth, outerH, palette.outer, t * motionSpeed, 2.7, motionAmount, blowStrength, touchStrength, response);
+    drawFlameLayer(p, cx - sway * 0.2, baseY + 4, size * 0.20 * windWidth, midH, palette.mid, t * motionSpeed, 23.6, motionAmount, blowStrength, touchStrength, response);
+    drawFlameLayer(p, cx + sway * 0.12, baseY + 9, size * 0.11 * windWidth, coreH, palette.core, t * motionSpeed, 51.2, motionAmount, blowStrength, touchStrength, response);
   }
 
-  function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount) {
-    const lean = Math.sin(t * 2.4 + phase) * w * 0.18 * motionAmount;
-    const flutter = Math.sin(t * 4.2 + phase) * h * 0.025 * motionAmount;
+  function drawFlameLayer(p, cx, baseY, width, height, fillColor, t, phase, motionAmount, blowStrength, touchStrength, response) {
+    const widthVariation = 1 + (p.noise(t * 0.48 + phase) - 0.5) * (0.18 + touchStrength * 0.08) * motionAmount;
+    const heightVariation = 1 + (p.noise(t * 0.41 + phase + 8) - 0.5) * (0.16 + blowStrength * 0.08 + touchStrength * 0.1) * motionAmount;
+    drawFlameShape(p, cx, baseY, width * widthVariation * response, height * heightVariation * response, fillColor, t, phase, motionAmount, blowStrength, touchStrength);
+  }
+
+  function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount, blowStrength, touchStrength) {
+    const activity = Math.min(1.85, motionAmount * (1 + blowStrength * 0.45 + touchStrength * 0.55));
+    const sample = (offset, rate = 1) => p.noise(t * rate + phase + offset) - 0.5;
+    const lowerLeft = sample(4, 0.62) * w * 0.06 * activity;
+    const lowerRight = sample(9, 0.58) * w * 0.06 * activity;
+    const leftBulge = sample(17, 0.72) * w * 0.24 * activity;
+    const rightBulge = sample(29, 0.67) * w * 0.24 * activity;
+    const upperAxis = sample(41, 0.5) * w * (0.34 + blowStrength * 0.18) * activity;
+    const tipBend = sample(53, 0.46) * w * (0.28 + blowStrength * 0.22) * activity;
+    const splitNoise = p.noise(t * 0.32 + phase + 71);
+    const split = p.constrain((splitNoise - 0.6) / 0.28, 0, 1) * Math.min(1, activity);
+    const topLift = sample(83, 0.38) * 0.07 * activity;
 
     p.fill(fillColor);
     p.beginShape();
-    p.vertex(cx - w * 0.5, baseY);
-
-    // p5.js 2.x: 3차 Bézier 한 구간은 제어점 2개와 끝점의
-    // 세 좌표를 각각 bezierVertex(x, y)로 추가한다.
+    p.vertex(cx - w * 0.43, baseY);
     addCubicSegment(p,
-      cx - w * 0.62, baseY - h * 0.18,
-      cx - w * 0.28, baseY - h * 0.43,
-      cx - w * 0.18 + lean, baseY - h * 0.62
+      cx - w * 0.56 + lowerLeft, baseY - h * 0.12,
+      cx - w * 0.55 + lowerLeft, baseY - h * 0.28,
+      cx - w * 0.46 + lowerLeft, baseY - h * 0.38
     );
     addCubicSegment(p,
-      cx - w * 0.13 + lean, baseY - h * 0.82,
-      cx - w * 0.09 + lean, baseY - h * 0.96 + flutter,
-      cx - w * 0.015 + lean, baseY - h
+      cx - w * 0.42 + leftBulge, baseY - h * 0.52,
+      cx - w * 0.34 + leftBulge + upperAxis * 0.2, baseY - h * 0.66,
+      cx - w * 0.25 + leftBulge + upperAxis * 0.45, baseY - h * 0.72
     );
     addCubicSegment(p,
-      cx + w * 0.07 + lean, baseY - h,
-      cx + w * 0.14 + lean, baseY - h * 0.88 + flutter,
-      cx + w * 0.12 + lean, baseY - h * 0.78
+      cx - w * 0.18 + upperAxis, baseY - h * 0.82,
+      cx - w * (0.1 + split * 0.06) + upperAxis + tipBend, baseY - h * (0.94 + topLift),
+      cx - w * (0.025 + split * 0.08) + upperAxis + tipBend, baseY - h * (0.98 + topLift)
     );
     addCubicSegment(p,
-      cx + w * 0.22 + lean, baseY - h * 0.74,
-      cx + w * 0.46, baseY - h * 0.46,
-      cx + w * 0.5, baseY - h * 0.22
+      cx + w * 0.02 + upperAxis + tipBend, baseY - h * (0.99 + topLift),
+      cx + w * 0.035 + upperAxis + tipBend * 0.9, baseY - h * (0.95 - split * 0.12),
+      cx + w * 0.04 + upperAxis + tipBend * 0.82, baseY - h * (0.94 - split * 0.14)
     );
     addCubicSegment(p,
-      cx + w * 0.58, baseY - h * 0.05,
-      cx + w * 0.34, baseY,
-      cx + w * 0.18, baseY
+      cx + w * (0.09 + split * 0.08) + upperAxis + tipBend, baseY - h * (0.98 + topLift),
+      cx + w * (0.16 + split * 0.1) + upperAxis, baseY - h * (0.88 + split * 0.04),
+      cx + w * 0.2 + upperAxis * 0.55, baseY - h * 0.76
+    );
+    addCubicSegment(p,
+      cx + w * 0.34 + rightBulge + upperAxis * 0.22, baseY - h * 0.68,
+      cx + w * 0.45 + rightBulge, baseY - h * 0.5,
+      cx + w * 0.48 + lowerRight, baseY - h * 0.35
+    );
+    addCubicSegment(p,
+      cx + w * 0.55 + lowerRight, baseY - h * 0.22,
+      cx + w * 0.51, baseY - h * 0.06,
+      cx + w * 0.36, baseY
     );
     p.endShape(p.CLOSE);
   }
