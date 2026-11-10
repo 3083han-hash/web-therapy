@@ -13,9 +13,8 @@
 <body>
   <main class="page-shell">
     <header class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">FIRE THERAPY</p>
-      <h1 id="page-title">불을 바라보며 잠시 쉬어가요.</h1>
-      <p class="intro-copy">화면을 누르면 장작이 살짝 살아나고 불씨가 번집니다. 아무것도 하지 않아도 괜찮아요.</p>
+      <h1 id="page-title">불멍</h1>
+      <p class="intro-copy">천천히 불빛을 바라보며 잠시 쉬어가세요.</p>
     </header>
 
     <section class="therapy-layout" aria-label="불멍 테라피">
@@ -53,7 +52,7 @@
 
         <div class="control-group">
           <div class="group-heading">
-            <h2>머무는 시간</h2>
+            <h2>시간</h2>
             <span id="timer-label" class="value-label tabular">자유롭게</span>
           </div>
           <div class="segment" role="group" aria-label="불멍 시간 선택">
@@ -62,7 +61,22 @@
             <button type="button" class="timer-btn" data-minutes="10" aria-pressed="false">10분</button>
             <button type="button" class="timer-btn" data-minutes="20" aria-pressed="false">20분</button>
           </div>
-          <p class="helper">시간이 끝나도 화면은 갑자기 멈추지 않고 천천히 잦아듭니다.</p>
+          <p class="helper">시간이 끝나면 불꽃이 천천히 잦아들어요.</p>
+        </div>
+
+        <div class="divider" role="presentation"></div>
+
+        <div class="control-group mic-control">
+          <div class="group-heading">
+            <h2>바람으로 불기</h2>
+            <span id="mic-value" class="value-label">OFF</span>
+          </div>
+          <div class="segment mic-segment" role="group" aria-label="마이크 바람 감지 설정">
+            <button id="mic-off-btn" type="button" class="mic-btn is-selected" aria-pressed="true">OFF</button>
+            <button id="mic-on-btn" type="button" class="mic-btn" aria-pressed="false">ON</button>
+          </div>
+          <p id="mic-status" class="helper" role="status" aria-live="polite">마이크는 꺼져 있어요.</p>
+          <p class="privacy-note">마이크 소리는 저장하거나 전송하지 않아요.</p>
         </div>
 
         <div class="divider" role="presentation"></div>
@@ -81,6 +95,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/p5@2.3.4/lib/p5.min.js"></script>
+  <script src="./mic-controller.js"></script>
   <script src="./fire-sketch.js"></script>
 </body>
 </html>

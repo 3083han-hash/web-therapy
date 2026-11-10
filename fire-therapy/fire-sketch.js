@@ -12,6 +12,9 @@
     sessionRemainingMs: null,
     sessionEnded: false,
     endFadeProgress: 0,
+    blowStrength: 0,
+    strongBlowDuration: 0,
+    strongSparkCooldown: 0,
     reducedMotion: motionQuery.matches
   };
 
@@ -23,6 +26,7 @@
 
   const particles = [];
   let sketchInstance = null;
+  let micController = null;
   let lastTimerText = '';
 
   const sketch = (p) => {
@@ -73,16 +77,22 @@
 
       const profile = intensityMap[state.intensity];
       state.boost = Math.max(0, state.boost - dt * 0.55);
+      if (!state.paused) {
+        state.blowStrength = micController?.getStrength() ?? 0;
+      }
+      const blowStrength = p.constrain(state.blowStrength, 0, 1);
       if (state.sessionEnded) {
         state.endFadeProgress = Math.min(1, state.endFadeProgress + dt / 3);
       }
       const fadeEase = smoothStep(state.endFadeProgress);
       const sessionFade = 1 - fadeEase * 0.65;
-      const energy = (profile.flame + state.boost) * sessionFade;
-      const speed = profile.speed * (state.reducedMotion ? 0.55 : 1);
-      const motionAmount = state.reducedMotion ? 0.22 : 1;
+      const restingEnergy = (profile.flame + state.boost) * sessionFade;
+      const windEnergy = profile.flame * 0.55 * blowStrength * sessionFade;
+      const energy = p.constrain(restingEnergy + windEnergy, 0, profile.flame * 1.6);
+      const speed = profile.speed * (1 + blowStrength * 0.25) * (state.reducedMotion ? 0.55 : 1);
+      const motionAmount = (state.reducedMotion ? 0.22 : 1) * (1 + blowStrength * 0.22);
 
-      drawBackground(p, palette, elapsed, speed, motionAmount);
+      drawBackground(p, palette, elapsed, speed, motionAmount, energy);
       drawGroundGlow(p, palette, energy);
       drawLogs(p, palette);
       drawFlames(p, palette, elapsed, energy, speed, motionAmount);
@@ -90,6 +100,7 @@
       if (!state.paused) {
         const sparkAmount = state.reducedMotion ? 0.25 : 1;
         spawnSparks(p, profile.sparks * energy * sparkAmount, dt);
+        updateWindSparks(p, blowStrength, dt);
         updateParticles(dt, speed);
       }
       drawParticles(p, palette);
@@ -152,13 +163,13 @@
     function wakeFire() {
       if (state.paused) return;
       state.boost = Math.min(0.65, state.boost + 0.28);
-      const burstCount = state.reducedMotion ? 3 : 8;
+      const burstCount = state.reducedMotion ? 2 : 6;
       for (let i = 0; i < burstCount; i++) particles.push(makeParticle(p, true));
       setStatus('불씨가 살짝 살아났어요.');
     }
   };
 
-  function drawBackground(p, palette, t, speed, motionAmount) {
+  function drawBackground(p, palette, t, speed, motionAmount, energy) {
     const ctx = p.drawingContext;
     const grad = ctx.createLinearGradient(0, 0, 0, p.height);
     grad.addColorStop(0, palette.band2);
@@ -169,7 +180,7 @@
     // 아주 느린 주변광. 반복적인 큰 모션 대신 거의 고정된 숨결처럼 움직임.
     const pulse = 0.5 + Math.sin(t * 0.8 * speed) * 0.04 * motionAmount;
     ctx.save();
-    ctx.globalAlpha = 0.08 + pulse * 0.03;
+    ctx.globalAlpha = 0.07 + pulse * 0.025 + Math.max(0, energy - 0.75) * 0.018;
     const rg = ctx.createRadialGradient(p.width * 0.5, p.height * 0.72, 0, p.width * 0.5, p.height * 0.72, p.width * 0.48);
     rg.addColorStop(0, palette.outer);
     rg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -183,7 +194,7 @@
     const cx = p.width * 0.5;
     const cy = p.height * 0.79;
     ctx.save();
-    ctx.globalAlpha = 0.10 + 0.08 * energy;
+    ctx.globalAlpha = 0.08 + 0.07 * energy;
     const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(p.width, p.height) * 0.34);
     rg.addColorStop(0, palette.mid);
     rg.addColorStop(0.36, palette.outer);
@@ -197,8 +208,8 @@
     const cx = p.width * 0.5;
     const baseY = p.height * 0.78;
     const size = Math.min(p.width, p.height);
-    const logW = size * 0.26;
-    const logH = Math.max(18, size * 0.042);
+    const logW = size * 0.34;
+    const logH = Math.max(20, size * 0.052);
 
     p.push();
     p.translate(cx, baseY);
@@ -233,9 +244,9 @@
     const baseY = p.height * 0.765;
     const size = Math.min(p.width, p.height);
 
-    const outerH = size * 0.31 * energy;
-    const midH = size * 0.245 * energy;
-    const coreH = size * 0.16 * energy;
+    const outerH = size * 0.44 * energy;
+    const midH = size * 0.34 * energy;
+    const coreH = size * 0.22 * energy;
 
     const irregular = p.noise(t * 0.72 * speed + 14.7) - 0.5;
     const sway = (
@@ -247,9 +258,9 @@
       + irregular * 0.07
     ) * motionAmount;
 
-    drawFlameShape(p, cx + sway, baseY, size * 0.19 * breathe, outerH * breathe, palette.outer, t, 0.0, motionAmount);
-    drawFlameShape(p, cx - sway * 0.3, baseY + 3, size * 0.135 * breathe, midH * breathe, palette.mid, t, 1.7, motionAmount);
-    drawFlameShape(p, cx + sway * 0.2, baseY + 7, size * 0.072 * breathe, coreH * breathe, palette.core, t, 3.1, motionAmount);
+    drawFlameShape(p, cx + sway, baseY, size * 0.28 * breathe, outerH * breathe, palette.outer, t, 0.0, motionAmount);
+    drawFlameShape(p, cx - sway * 0.3, baseY + 4, size * 0.20 * breathe, midH * breathe, palette.mid, t, 1.7, motionAmount);
+    drawFlameShape(p, cx + sway * 0.2, baseY + 9, size * 0.11 * breathe, coreH * breathe, palette.core, t, 3.1, motionAmount);
   }
 
   function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount) {
@@ -296,8 +307,23 @@
   }
 
   function spawnSparks(p, strength, dt) {
-    const rate = 4.2 * strength;
+    const rate = 3.2 * strength;
     if (Math.random() < rate * dt) particles.push(makeParticle(p, false));
+  }
+
+  function updateWindSparks(p, blowStrength, dt) {
+    if (blowStrength > 0.72) {
+      state.strongBlowDuration += dt;
+    } else {
+      state.strongBlowDuration = Math.max(0, state.strongBlowDuration - dt * 1.5);
+    }
+
+    state.strongSparkCooldown = Math.max(0, state.strongSparkCooldown - dt);
+    if (state.strongBlowDuration < 0.65 || state.strongSparkCooldown > 0) return;
+
+    const sparkCount = blowStrength > 0.9 && !state.reducedMotion ? 2 : 1;
+    for (let i = 0; i < sparkCount; i++) particles.push(makeParticle(p, false));
+    state.strongSparkCooldown = 0.5 + p.random(0.35);
   }
 
   function makeParticle(p, burst) {
@@ -344,6 +370,15 @@
     p.rect(0, 0, p.width, p.height);
     p.pop();
   }
+
+  const micValue = document.getElementById('mic-value');
+  const micStatus = document.getElementById('mic-status');
+  const micOffBtn = document.getElementById('mic-off-btn');
+  const micOnBtn = document.getElementById('mic-on-btn');
+
+  micController = window.createMicController({
+    onStateChange: updateMicUI
+  });
 
   sketchInstance = new p5(sketch);
 
@@ -393,6 +428,18 @@
     }
   });
 
+  micOnBtn.addEventListener('click', () => {
+    micController.start();
+  });
+
+  micOffBtn.addEventListener('click', () => {
+    micController.stop();
+  });
+
+  window.addEventListener('pagehide', () => {
+    micController.stop();
+  });
+
   document.getElementById('reset-btn').addEventListener('click', () => {
     state.paused = false;
     state.boost = 0;
@@ -401,6 +448,8 @@
     state.sessionRemainingMs = null;
     state.sessionEnded = false;
     state.endFadeProgress = 0;
+    state.strongBlowDuration = 0;
+    state.strongSparkCooldown = 0;
     state.skipNextDelta = true;
     particles.splice(0, particles.length);
 
@@ -444,6 +493,20 @@
     if (text === lastTimerText) return;
     timerLabel.textContent = text;
     lastTimerText = text;
+  }
+
+  function updateMicUI({ state: micState, message }) {
+    const active = micState === 'requesting' || micState === 'calibrating' || micState === 'on';
+    const unsupported = micState === 'unsupported';
+
+    micValue.textContent = active ? 'ON' : 'OFF';
+    micStatus.textContent = message;
+    micOnBtn.classList.toggle('is-selected', active);
+    micOffBtn.classList.toggle('is-selected', !active);
+    micOnBtn.setAttribute('aria-pressed', String(active));
+    micOffBtn.setAttribute('aria-pressed', String(!active));
+    micOnBtn.disabled = unsupported || active;
+    micOffBtn.disabled = unsupported || !active;
   }
 
   let statusTimer = 0;
