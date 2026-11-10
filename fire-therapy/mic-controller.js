@@ -144,11 +144,6 @@
       emit('requesting', '마이크 권한을 확인하고 있어요…');
 
       try {
-        // 모바일 브라우저의 사용자 제스처 요구를 지키기 위해
-        // ON 버튼 처리 흐름 안에서 오디오 컨텍스트를 먼저 활성화한다.
-        audioContext = new AudioContextClass();
-        if (audioContext.state === 'suspended') await audioContext.resume();
-
         const nextStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: false
@@ -160,6 +155,8 @@
         }
 
         stream = nextStream;
+        audioContext = new AudioContextClass();
+        if (audioContext.state === 'suspended') await audioContext.resume();
         sourceNode = audioContext.createMediaStreamSource(stream);
         analyserNode = audioContext.createAnalyser();
         analyserNode.fftSize = 2048;

@@ -30,6 +30,17 @@
   --fire-log: #6f4939;
   --fire-log-dark: #453029;
 
+  --night-sky-top: #111927;
+  --night-sky-bottom: #1a2a3b;
+  --night-cloud: #29394c;
+  --mountain-far: #294055;
+  --mountain-mid: #1b3043;
+  --mountain-near: #122331;
+  --night-ground: #121b21;
+  --tent-fabric: #314150;
+  --tent-shadow: #202d38;
+  --tent-light: #b9824c;
+
   --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-symmetric: cubic-bezier(0.65, 0, 0.35, 1);
 }

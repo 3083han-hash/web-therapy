@@ -81,6 +81,21 @@
 
         <div class="divider" role="presentation"></div>
 
+        <div class="control-group sound-control">
+          <div class="group-heading">
+            <h2>소리</h2>
+            <span id="sound-value" class="value-label">OFF</span>
+          </div>
+          <div class="segment sound-segment" role="group" aria-label="불멍 소리 설정">
+            <button type="button" class="sound-btn is-selected" data-sound="off" aria-pressed="true">끄기</button>
+            <button type="button" class="sound-btn" data-sound="soft" aria-pressed="false">작게</button>
+            <button type="button" class="sound-btn" data-sound="normal" aria-pressed="false">보통</button>
+          </div>
+          <p id="sound-status" class="helper" role="status" aria-live="polite">소리는 꺼져 있어요.</p>
+        </div>
+
+        <div class="divider" role="presentation"></div>
+
         <div class="session-actions">
           <button id="pause-btn" class="button button-primary" type="button" aria-pressed="false">
             <span class="button-icon" aria-hidden="true">Ⅱ</span>
@@ -96,6 +111,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/p5@2.3.4/lib/p5.min.js"></script>
   <script src="./mic-controller.js"></script>
+  <script src="./sound-controller.js"></script>
   <script src="./fire-sketch.js"></script>
 </body>
 </html>

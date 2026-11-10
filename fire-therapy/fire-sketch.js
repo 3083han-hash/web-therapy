@@ -27,6 +27,7 @@
   const particles = [];
   let sketchInstance = null;
   let micController = null;
+  let soundController = null;
   let lastTimerText = '';
 
   const sketch = (p) => {
@@ -35,6 +36,7 @@
     let elapsed = 0;
     let resizeObserver = null;
     let pointerStart = null;
+    let stars = [];
 
     p.setup = () => {
       // setup(): 캔버스 생성 + 픽셀 밀도 + 색상/초기 상태 설정
@@ -54,8 +56,19 @@
         outer: css('--color-accent'),
         ember: css('--fire-ember'),
         log: css('--fire-log'),
-        logDark: css('--fire-log-dark')
+        logDark: css('--fire-log-dark'),
+        skyTop: css('--night-sky-top'),
+        skyBottom: css('--night-sky-bottom'),
+        cloud: css('--night-cloud'),
+        mountainFar: css('--mountain-far'),
+        mountainMid: css('--mountain-mid'),
+        mountainNear: css('--mountain-near'),
+        ground: css('--night-ground'),
+        tent: css('--tent-fabric'),
+        tentShadow: css('--tent-shadow'),
+        tentLight: css('--tent-light')
       };
+      stars = createStars(28);
 
       p.describe('짙은 배경 위에서 장작불이 잔잔하게 흔들리고 작은 불씨가 위로 올라가는 불멍 애니메이션. 화면을 누르면 불꽃이 잠시 커집니다.');
       bindCanvasInput(canvas.elt);
@@ -92,10 +105,11 @@
       const speed = profile.speed * (1 + blowStrength * 0.25) * (state.reducedMotion ? 0.55 : 1);
       const motionAmount = (state.reducedMotion ? 0.22 : 1) * (1 + blowStrength * 0.22);
 
-      drawBackground(p, palette, elapsed, speed, motionAmount, energy);
+      soundController?.setFireState(state.intensity, blowStrength);
+      drawBackground(p, palette, stars, elapsed, speed, motionAmount, energy);
       drawGroundGlow(p, palette, energy);
-      drawLogs(p, palette);
-      drawFlames(p, palette, elapsed, energy, speed, motionAmount);
+      drawLogs(p, palette, energy);
+      drawFlames(p, palette, elapsed, energy, speed, motionAmount, blowStrength);
 
       if (!state.paused) {
         const sparkAmount = state.reducedMotion ? 0.25 : 1;
@@ -162,26 +176,43 @@
 
     function wakeFire() {
       if (state.paused) return;
-      state.boost = Math.min(0.65, state.boost + 0.28);
+      state.boost = Math.min(0.7, state.boost + 0.34);
       const burstCount = state.reducedMotion ? 2 : 6;
       for (let i = 0; i < burstCount; i++) particles.push(makeParticle(p, true));
       setStatus('불씨가 살짝 살아났어요.');
     }
   };
 
-  function drawBackground(p, palette, t, speed, motionAmount, energy) {
+  function createStars(count) {
+    return Array.from({ length: count }, () => ({
+      x: 0.04 + Math.random() * 0.92,
+      y: 0.05 + Math.random() * 0.43,
+      size: 0.8 + Math.random() * 1.5,
+      alpha: 0.22 + Math.random() * 0.34,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.18 + Math.random() * 0.28
+    }));
+  }
+
+  function drawBackground(p, palette, stars, t, speed, motionAmount, energy) {
     const ctx = p.drawingContext;
     const grad = ctx.createLinearGradient(0, 0, 0, p.height);
-    grad.addColorStop(0, palette.band2);
-    grad.addColorStop(1, palette.band);
+    grad.addColorStop(0, palette.skyTop);
+    grad.addColorStop(0.68, palette.skyBottom);
+    grad.addColorStop(1, palette.ground);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, p.width, p.height);
 
-    // 아주 느린 주변광. 반복적인 큰 모션 대신 거의 고정된 숨결처럼 움직임.
+    drawClouds(p, palette, t, motionAmount);
+    drawStars(p, stars, t, motionAmount);
+    drawMountains(p, palette);
+    drawTent(p, palette, energy);
+
     const pulse = 0.5 + Math.sin(t * 0.8 * speed) * 0.04 * motionAmount;
     ctx.save();
-    ctx.globalAlpha = 0.07 + pulse * 0.025 + Math.max(0, energy - 0.75) * 0.018;
-    const rg = ctx.createRadialGradient(p.width * 0.5, p.height * 0.72, 0, p.width * 0.5, p.height * 0.72, p.width * 0.48);
+    ctx.globalAlpha = 0.07 + pulse * 0.024 + Math.max(0, energy - 0.75) * 0.025;
+    const glowRadius = Math.min(p.width, p.height) * (0.34 + energy * 0.055);
+    const rg = ctx.createRadialGradient(p.width * 0.5, p.height * 0.72, 0, p.width * 0.5, p.height * 0.72, glowRadius);
     rg.addColorStop(0, palette.outer);
     rg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = rg;
@@ -189,22 +220,94 @@
     ctx.restore();
   }
 
+  function drawClouds(p, palette, t, motionAmount) {
+    const drift = (t * 0.0015 * motionAmount) % 1;
+    p.push();
+    p.noStroke();
+    p.fill(palette.cloud);
+    p.drawingContext.globalAlpha = 0.2;
+    const clouds = [
+      { x: 0.14, y: 0.17, w: 0.24 },
+      { x: 0.69, y: 0.28, w: 0.19 }
+    ];
+    for (const cloud of clouds) {
+      const x = ((cloud.x + drift) % 1.18 - 0.09) * p.width;
+      const y = cloud.y * p.height;
+      const w = cloud.w * p.width;
+      p.ellipse(x, y, w, w * 0.16);
+      p.ellipse(x - w * 0.22, y + 2, w * 0.52, w * 0.12);
+      p.ellipse(x + w * 0.24, y + 3, w * 0.46, w * 0.11);
+    }
+    p.pop();
+  }
+
+  function drawStars(p, stars, t, motionAmount) {
+    p.push();
+    p.noStroke();
+    for (const star of stars) {
+      const twinkle = 0.82 + Math.sin(t * star.speed + star.phase) * 0.18 * motionAmount;
+      p.fill(`rgba(235,230,205,${star.alpha * twinkle})`);
+      p.circle(star.x * p.width, star.y * p.height, star.size);
+    }
+    p.pop();
+  }
+
+  function drawMountains(p, palette) {
+    drawMountainLayer(p, palette.mountainFar, 0.49, [0.08, 0.02, 0.11, 0.04, 0.14, 0.05, 0.1, 0.03]);
+    drawMountainLayer(p, palette.mountainMid, 0.57, [0.12, 0.05, 0.16, 0.06, 0.11, 0.08, 0.04, 0.07]);
+    drawMountainLayer(p, palette.mountainNear, 0.65, [0.08, 0.13, 0.06, 0.12, 0.05, 0.1, 0.08, 0.03]);
+  }
+
+  function drawMountainLayer(p, color, base, peaks) {
+    p.fill(color);
+    p.noStroke();
+    p.beginShape();
+    p.vertex(0, p.height);
+    p.vertex(0, p.height * base);
+    peaks.forEach((height, index) => {
+      p.vertex((index / (peaks.length - 1)) * p.width, p.height * (base - height));
+    });
+    p.vertex(p.width, p.height);
+    p.endShape(p.CLOSE);
+  }
+
+  function drawTent(p, palette, energy) {
+    const size = Math.min(p.width, p.height);
+    const cx = p.width * (p.width < 600 ? 0.2 : 0.19);
+    const baseY = p.height * 0.72;
+    const tentW = size * 0.22;
+    const tentH = size * 0.13;
+    p.push();
+    p.noStroke();
+    p.fill(palette.tentShadow);
+    p.triangle(cx - tentW * 0.62, baseY, cx, baseY - tentH, cx + tentW * 0.62, baseY);
+    p.fill(palette.tent);
+    p.triangle(cx - tentW * 0.48, baseY, cx, baseY - tentH * 0.9, cx + tentW * 0.12, baseY);
+    p.fill(palette.tentLight);
+    p.drawingContext.globalAlpha = 0.18 + Math.min(0.12, energy * 0.04);
+    p.triangle(cx - tentW * 0.03, baseY - 2, cx, baseY - tentH * 0.78, cx + tentW * 0.12, baseY - 2);
+    p.pop();
+  }
+
   function drawGroundGlow(p, palette, energy) {
     const ctx = p.drawingContext;
     const cx = p.width * 0.5;
     const cy = p.height * 0.79;
     ctx.save();
-    ctx.globalAlpha = 0.08 + 0.07 * energy;
-    const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(p.width, p.height) * 0.34);
+    ctx.globalAlpha = 0.07 + 0.075 * energy;
+    ctx.translate(cx, cy);
+    ctx.scale(1.65, 0.52);
+    const radius = Math.min(p.width, p.height) * (0.23 + energy * 0.035);
+    const rg = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     rg.addColorStop(0, palette.mid);
     rg.addColorStop(0.36, palette.outer);
     rg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = rg;
-    ctx.fillRect(0, 0, p.width, p.height);
+    ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
     ctx.restore();
   }
 
-  function drawLogs(p, palette) {
+  function drawLogs(p, palette, energy) {
     const cx = p.width * 0.5;
     const baseY = p.height * 0.78;
     const size = Math.min(p.width, p.height);
@@ -216,6 +319,10 @@
 
     drawOneLog(p, -logW * 0.05, 0, logW, logH, -0.18, palette);
     drawOneLog(p, logW * 0.05, 0, logW, logH, 0.18, palette);
+    p.fill(palette.ember);
+    p.drawingContext.globalAlpha = Math.min(0.62, 0.12 + energy * 0.22);
+    p.ellipse(-logW * 0.12, -logH * 0.18, logW * 0.18, logH * 0.16);
+    p.ellipse(logW * 0.18, -logH * 0.12, logW * 0.12, logH * 0.13);
 
     p.pop();
   }
@@ -239,7 +346,7 @@
     p.pop();
   }
 
-  function drawFlames(p, palette, t, energy, speed, motionAmount) {
+  function drawFlames(p, palette, t, energy, speed, motionAmount, blowStrength) {
     const cx = p.width * 0.5;
     const baseY = p.height * 0.765;
     const size = Math.min(p.width, p.height);
@@ -257,10 +364,14 @@
       Math.sin(t * 2.1 * speed) * 0.025
       + irregular * 0.07
     ) * motionAmount;
+    const windWidth = 1 + blowStrength * 0.12;
+    const outerShape = 1 + (p.noise(t * 0.42 * speed + 3.2) - 0.5) * 0.12 * motionAmount;
+    const midShape = 1 + (p.noise(t * 0.5 * speed + 21.4) - 0.5) * 0.14 * motionAmount;
+    const coreShape = 1 + (p.noise(t * 0.58 * speed + 46.8) - 0.5) * 0.1 * motionAmount;
 
-    drawFlameShape(p, cx + sway, baseY, size * 0.28 * breathe, outerH * breathe, palette.outer, t, 0.0, motionAmount);
-    drawFlameShape(p, cx - sway * 0.3, baseY + 4, size * 0.20 * breathe, midH * breathe, palette.mid, t, 1.7, motionAmount);
-    drawFlameShape(p, cx + sway * 0.2, baseY + 9, size * 0.11 * breathe, coreH * breathe, palette.core, t, 3.1, motionAmount);
+    drawFlameShape(p, cx + sway, baseY, size * 0.28 * breathe * windWidth * outerShape, outerH * breathe / outerShape, palette.outer, t, 0.0, motionAmount);
+    drawFlameShape(p, cx - sway * 0.3, baseY + 4, size * 0.20 * breathe * windWidth * midShape, midH * breathe / midShape, palette.mid, t, 1.7, motionAmount);
+    drawFlameShape(p, cx + sway * 0.2, baseY + 9, size * 0.11 * breathe * windWidth * coreShape, coreH * breathe / coreShape, palette.core, t, 3.1, motionAmount);
   }
 
   function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount) {
@@ -279,9 +390,14 @@
       cx - w * 0.18 + lean, baseY - h * 0.62
     );
     addCubicSegment(p,
-      cx - w * 0.05 + lean, baseY - h * 0.82,
-      cx + w * 0.03 + lean, baseY - h + flutter,
-      cx + lean, baseY - h
+      cx - w * 0.13 + lean, baseY - h * 0.82,
+      cx - w * 0.09 + lean, baseY - h * 0.96 + flutter,
+      cx - w * 0.015 + lean, baseY - h
+    );
+    addCubicSegment(p,
+      cx + w * 0.07 + lean, baseY - h,
+      cx + w * 0.14 + lean, baseY - h * 0.88 + flutter,
+      cx + w * 0.12 + lean, baseY - h * 0.78
     );
     addCubicSegment(p,
       cx + w * 0.22 + lean, baseY - h * 0.74,
@@ -375,9 +491,18 @@
   const micStatus = document.getElementById('mic-status');
   const micOffBtn = document.getElementById('mic-off-btn');
   const micOnBtn = document.getElementById('mic-on-btn');
+  const soundValue = document.getElementById('sound-value');
+  const soundStatus = document.getElementById('sound-status');
+  const soundButtons = [...document.querySelectorAll('.sound-btn')];
+  soundButtons.forEach((button) => {
+    button.disabled = button.dataset.sound !== 'off';
+  });
 
   micController = window.createMicController({
     onStateChange: updateMicUI
+  });
+  soundController = window.createSoundController({
+    onStateChange: updateSoundUI
   });
 
   sketchInstance = new p5(sketch);
@@ -436,8 +561,23 @@
     micController.stop();
   });
 
+  soundButtons.forEach((button) => {
+    button.addEventListener('click', async () => {
+      const selectedLevel = button.dataset.sound;
+      const changed = await soundController.setLevel(selectedLevel);
+      if (!changed) return;
+      soundButtons.forEach((item) => {
+        const selected = item === button;
+        item.classList.toggle('is-selected', selected);
+        item.setAttribute('aria-pressed', String(selected));
+      });
+      soundValue.textContent = selectedLevel === 'off' ? 'OFF' : selectedLevel === 'soft' ? '작게' : '보통';
+    });
+  });
+
   window.addEventListener('pagehide', () => {
     micController.stop();
+    soundController.setLevel('off');
   });
 
   document.getElementById('reset-btn').addEventListener('click', () => {
@@ -507,6 +647,22 @@
     micOffBtn.setAttribute('aria-pressed', String(!active));
     micOnBtn.disabled = unsupported || active;
     micOffBtn.disabled = unsupported || !active;
+  }
+
+  function updateSoundUI({ state: soundState, message }) {
+    soundStatus.textContent = message;
+    const unavailable = soundState === 'unavailable';
+    soundButtons.forEach((button) => {
+      button.disabled = unavailable && button.dataset.sound !== 'off';
+    });
+    if (soundState === 'error') {
+      soundValue.textContent = 'OFF';
+      soundButtons.forEach((button) => {
+        const selected = button.dataset.sound === 'off';
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    }
   }
 
   let statusTimer = 0;
