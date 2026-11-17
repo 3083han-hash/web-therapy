@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=20261116-layout" />
 </head>
 <body>
   <main class="page-shell">
@@ -66,31 +66,32 @@
 
         <div class="divider" role="presentation"></div>
 
-        <div class="control-group mic-control">
+        <div class="control-group hand-control">
           <div class="group-heading">
-            <h2>바람으로 불기</h2>
-            <span id="mic-value" class="value-label">OFF</span>
+            <h2>손동작</h2>
+            <span id="hand-value" class="value-label">OFF</span>
           </div>
-          <div class="segment mic-segment" role="group" aria-label="마이크 바람 감지 설정">
-            <button id="mic-off-btn" type="button" class="mic-btn is-selected" aria-pressed="true">OFF</button>
-            <button id="mic-on-btn" type="button" class="mic-btn" aria-pressed="false">ON</button>
+          <div class="segment hand-segment" role="group" aria-label="손동작 설정">
+            <button id="hand-off-btn" type="button" class="hand-btn is-selected" aria-pressed="true">끄기</button>
+            <button id="hand-on-btn" type="button" class="hand-btn" aria-pressed="false">켜기</button>
           </div>
-          <p id="mic-status" class="helper" role="status" aria-live="polite">마이크는 꺼져 있어요.</p>
-          <p class="privacy-note">마이크 소리는 저장하거나 전송하지 않아요.</p>
+          <p id="hand-status" class="helper" role="status" aria-live="polite">손동작은 꺼져 있어요.</p>
+          <div id="hand-preview" class="hand-preview" hidden>
+            <video id="hand-video" muted playsinline aria-label="손동작 확인용 카메라 미리보기"></video>
+            <div id="hand-preview-overlay" aria-hidden="true"></div>
+          </div>
+          <p class="privacy-note">영상은 저장하거나 전송하지 않아요.</p>
         </div>
 
         <div class="divider" role="presentation"></div>
 
         <div class="control-group sound-control">
           <div class="group-heading">
-            <h2>소리</h2>
-            <span id="sound-value" class="value-label">OFF</span>
+            <h2><label for="sound-volume">소리</label></h2>
+            <output id="sound-value" class="value-label tabular" for="sound-volume">0 / 100</output>
           </div>
-          <div class="segment sound-segment" role="group" aria-label="불멍 소리 설정">
-            <button type="button" class="sound-btn is-selected" data-sound="off" aria-pressed="true">끄기</button>
-            <button type="button" class="sound-btn" data-sound="soft" aria-pressed="false">작게</button>
-            <button type="button" class="sound-btn" data-sound="normal" aria-pressed="false">보통</button>
-          </div>
+          <input id="sound-volume" class="volume-slider" type="range" min="0" max="100" step="1" value="0" aria-describedby="sound-help" />
+          <p id="sound-help" class="helper">0은 무음이에요. 정한 음량 안에서 불길이 커질수록 소리도 커져요.</p>
           <p id="sound-status" class="helper" role="status" aria-live="polite">소리는 꺼져 있어요.</p>
         </div>
 
@@ -110,8 +111,9 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/p5@2.3.4/lib/p5.min.js"></script>
-  <script src="./mic-controller.js"></script>
-  <script src="./sound-controller.js"></script>
-  <script src="./fire-sketch.js"></script>
+  <script src="./hand-controller.js"></script>
+  <script src="./hand-preview.js"></script>
+  <script src="./sound-controller.js?v=20261116-volume"></script>
+  <script src="./fire-sketch.js?v=20261116-volume"></script>
 </body>
 </html>

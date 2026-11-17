@@ -12,8 +12,8 @@
     sessionRemainingMs: null,
     sessionEnded: false,
     endFadeProgress: 0,
-    blowStrength: 0,
-    strongBlowDuration: 0,
+    fanningStrength: 0,
+    strongFanningDuration: 0,
     strongSparkCooldown: 0,
     reducedMotion: motionQuery.matches
   };
@@ -26,9 +26,10 @@
 
   const particles = [];
   let sketchInstance = null;
-  let micController = null;
+  let handController = null;
   let soundController = null;
   let lastTimerText = '';
+  let wakeFromHand = () => {};
 
   const sketch = (p) => {
     let wrap;
@@ -69,6 +70,7 @@
 
       p.describe('짙은 배경 위에서 장작불이 잔잔하게 흔들리고 작은 불씨가 위로 올라가는 불멍 애니메이션. 화면을 누르면 불꽃이 잠시 커집니다.');
       bindCanvasInput(canvas.elt);
+      wakeFromHand = wakeFire;
 
       if ('ResizeObserver' in window) {
         resizeObserver = new ResizeObserver(resizeCanvasToWrap);
@@ -88,34 +90,44 @@
       const profile = intensityMap[state.intensity];
       state.boost = Math.max(0, state.boost - dt * 0.38);
       if (!state.paused) {
-        state.blowStrength = micController?.getStrength() ?? 0;
+        state.fanningStrength = handController?.getStrength() ?? 0;
       }
-      const blowStrength = p.constrain(state.blowStrength, 0, 1);
+      const fanningStrength = p.constrain(state.fanningStrength, 0, 1);
       if (state.sessionEnded) {
         state.endFadeProgress = Math.min(1, state.endFadeProgress + dt / 3);
       }
       const fadeEase = smoothStep(state.endFadeProgress);
       const sessionFade = 1 - fadeEase * 0.65;
       const restingEnergy = (profile.flame + state.boost) * sessionFade;
-      const windEnergy = profile.flame * 0.55 * blowStrength * sessionFade;
+      const windEnergy = profile.flame * 0.55 * fanningStrength * sessionFade;
       const energy = p.constrain(restingEnergy + windEnergy, 0, profile.flame * 1.6);
-      const speed = profile.speed * (1 + blowStrength * 0.25) * (state.reducedMotion ? 0.55 : 1);
-      const motionAmount = (state.reducedMotion ? 0.22 : 1) * (1 + blowStrength * 0.22);
+      const speed = profile.speed * (1 + fanningStrength * 0.25) * (state.reducedMotion ? 0.55 : 1);
+      const motionAmount = (state.reducedMotion ? 0.22 : 1) * (1 + fanningStrength * 0.22);
       const touchStrength = p.constrain(state.boost / 0.7, 0, 1);
 
-      soundController?.setFireState(state.intensity, blowStrength);
+      soundController?.setFireState(energy);
       drawBackground(p, palette, stars, elapsed, speed, motionAmount, energy);
       drawGroundGlow(p, palette, energy);
       drawLogs(p, palette, energy);
-      drawFlames(p, palette, elapsed, energy, speed, motionAmount, blowStrength, touchStrength);
+      drawFlames(p, palette, elapsed, energy, speed, motionAmount, fanningStrength, touchStrength);
 
       if (!state.paused) {
         const sparkAmount = state.reducedMotion ? 0.25 : 1;
-        spawnSparks(p, profile.sparks * energy * sparkAmount, dt);
-        updateWindSparks(p, blowStrength, dt);
+        spawnSparks(p, profile.sparks * energy * (1 + fanningStrength * 0.1) * sparkAmount, dt);
+        updateFanningSparks(p, fanningStrength, dt);
         updateParticles(dt, speed);
       }
       drawParticles(p, palette);
+
+      const handPointer = handController?.getPointer();
+      if (handPointer && !state.paused) {
+        p.push();
+        p.noFill();
+        p.stroke(handPointer.down ? palette.core : css('--color-band-ink'));
+        p.strokeWeight(handPointer.down ? 3 : 1.5);
+        p.circle(handPointer.x * p.width, handPointer.y * p.height, handPointer.down ? 20 : 28);
+        p.pop();
+      }
 
       if (state.paused) drawPauseVeil(p);
       advanceTimer(timerDt);
@@ -339,39 +351,39 @@
     p.pop();
   }
 
-  function drawFlames(p, palette, t, energy, speed, motionAmount, blowStrength, touchStrength) {
+  function drawFlames(p, palette, t, energy, speed, motionAmount, fanningStrength, touchStrength) {
     const cx = p.width * 0.5;
     const baseY = p.height * 0.765;
     const size = Math.min(p.width, p.height);
     const outerH = size * 0.44 * energy;
     const midH = size * 0.34 * energy;
     const coreH = size * 0.22 * energy;
-    const motionSpeed = speed * (0.62 + blowStrength * 0.28 + touchStrength * 0.22);
-    const swayRange = size * (0.024 + blowStrength * 0.018 + touchStrength * 0.012);
+    const motionSpeed = speed * (0.62 + fanningStrength * 0.28 + touchStrength * 0.22);
+    const swayRange = size * (0.024 + fanningStrength * 0.018 + touchStrength * 0.012);
     const sway = (p.noise(t * 0.38 * motionSpeed + 8.4) - 0.5) * swayRange * 2 * motionAmount;
-    const windWidth = 1 + blowStrength * 0.12;
-    const response = 1 + touchStrength * 0.08 + blowStrength * 0.06;
+    const windWidth = 1 + fanningStrength * 0.12;
+    const response = 1 + touchStrength * 0.08 + fanningStrength * 0.06;
 
-    drawFlameLayer(p, cx + sway, baseY, size * 0.28 * windWidth, outerH, palette.outer, t * motionSpeed, 2.7, motionAmount, blowStrength, touchStrength, response);
-    drawFlameLayer(p, cx - sway * 0.2, baseY + 4, size * 0.20 * windWidth, midH, palette.mid, t * motionSpeed, 23.6, motionAmount, blowStrength, touchStrength, response);
-    drawFlameLayer(p, cx + sway * 0.12, baseY + 9, size * 0.11 * windWidth, coreH, palette.core, t * motionSpeed, 51.2, motionAmount, blowStrength, touchStrength, response);
+    drawFlameLayer(p, cx + sway, baseY, size * 0.28 * windWidth, outerH, palette.outer, t * motionSpeed, 2.7, motionAmount, fanningStrength, touchStrength, response);
+    drawFlameLayer(p, cx - sway * 0.2, baseY + 4, size * 0.20 * windWidth, midH, palette.mid, t * motionSpeed, 23.6, motionAmount, fanningStrength, touchStrength, response);
+    drawFlameLayer(p, cx + sway * 0.12, baseY + 9, size * 0.11 * windWidth, coreH, palette.core, t * motionSpeed, 51.2, motionAmount, fanningStrength, touchStrength, response);
   }
 
-  function drawFlameLayer(p, cx, baseY, width, height, fillColor, t, phase, motionAmount, blowStrength, touchStrength, response) {
+  function drawFlameLayer(p, cx, baseY, width, height, fillColor, t, phase, motionAmount, fanningStrength, touchStrength, response) {
     const widthVariation = 1 + (p.noise(t * 0.48 + phase) - 0.5) * (0.18 + touchStrength * 0.08) * motionAmount;
-    const heightVariation = 1 + (p.noise(t * 0.41 + phase + 8) - 0.5) * (0.16 + blowStrength * 0.08 + touchStrength * 0.1) * motionAmount;
-    drawFlameShape(p, cx, baseY, width * widthVariation * response, height * heightVariation * response, fillColor, t, phase, motionAmount, blowStrength, touchStrength);
+    const heightVariation = 1 + (p.noise(t * 0.41 + phase + 8) - 0.5) * (0.16 + fanningStrength * 0.08 + touchStrength * 0.1) * motionAmount;
+    drawFlameShape(p, cx, baseY, width * widthVariation * response, height * heightVariation * response, fillColor, t, phase, motionAmount, fanningStrength, touchStrength);
   }
 
-  function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount, blowStrength, touchStrength) {
-    const activity = Math.min(1.85, motionAmount * (1 + blowStrength * 0.45 + touchStrength * 0.55));
+  function drawFlameShape(p, cx, baseY, w, h, fillColor, t, phase, motionAmount, fanningStrength, touchStrength) {
+    const activity = Math.min(1.85, motionAmount * (1 + fanningStrength * 0.45 + touchStrength * 0.55));
     const sample = (offset, rate = 1) => p.noise(t * rate + phase + offset) - 0.5;
     const lowerLeft = sample(4, 0.62) * w * 0.06 * activity;
     const lowerRight = sample(9, 0.58) * w * 0.06 * activity;
     const leftBulge = sample(17, 0.72) * w * 0.24 * activity;
     const rightBulge = sample(29, 0.67) * w * 0.24 * activity;
-    const upperAxis = sample(41, 0.5) * w * (0.34 + blowStrength * 0.18) * activity;
-    const tipBend = sample(53, 0.46) * w * (0.28 + blowStrength * 0.22) * activity;
+    const upperAxis = sample(41, 0.5) * w * (0.34 + fanningStrength * 0.18) * activity;
+    const tipBend = sample(53, 0.46) * w * (0.28 + fanningStrength * 0.22) * activity;
     const splitNoise = p.noise(t * 0.32 + phase + 71);
     const split = p.constrain((splitNoise - 0.6) / 0.28, 0, 1) * Math.min(1, activity);
     const topLift = sample(83, 0.38) * 0.07 * activity;
@@ -432,17 +444,17 @@
     if (Math.random() < rate * dt) particles.push(makeParticle(p, false));
   }
 
-  function updateWindSparks(p, blowStrength, dt) {
-    if (blowStrength > 0.72) {
-      state.strongBlowDuration += dt;
+  function updateFanningSparks(p, fanningStrength, dt) {
+    if (fanningStrength > 0.72) {
+      state.strongFanningDuration += dt;
     } else {
-      state.strongBlowDuration = Math.max(0, state.strongBlowDuration - dt * 1.5);
+      state.strongFanningDuration = Math.max(0, state.strongFanningDuration - dt * 1.5);
     }
 
     state.strongSparkCooldown = Math.max(0, state.strongSparkCooldown - dt);
-    if (state.strongBlowDuration < 0.65 || state.strongSparkCooldown > 0) return;
+    if (state.strongFanningDuration < 0.65 || state.strongSparkCooldown > 0) return;
 
-    const sparkCount = blowStrength > 0.9 && !state.reducedMotion ? 2 : 1;
+    const sparkCount = fanningStrength > 0.9 && !state.reducedMotion ? 2 : 1;
     for (let i = 0; i < sparkCount; i++) particles.push(makeParticle(p, false));
     state.strongSparkCooldown = 0.5 + p.random(0.35);
   }
@@ -492,19 +504,20 @@
     p.pop();
   }
 
-  const micValue = document.getElementById('mic-value');
-  const micStatus = document.getElementById('mic-status');
-  const micOffBtn = document.getElementById('mic-off-btn');
-  const micOnBtn = document.getElementById('mic-on-btn');
+  const handValue = document.getElementById('hand-value');
+  const handStatus = document.getElementById('hand-status');
+  const handOffBtn = document.getElementById('hand-off-btn');
+  const handOnBtn = document.getElementById('hand-on-btn');
   const soundValue = document.getElementById('sound-value');
   const soundStatus = document.getElementById('sound-status');
-  const soundButtons = [...document.querySelectorAll('.sound-btn')];
-  soundButtons.forEach((button) => {
-    button.disabled = button.dataset.sound !== 'off';
-  });
+  const soundVolume = document.getElementById('sound-volume');
 
-  micController = window.createMicController({
-    onStateChange: updateMicUI
+  const handPreview = window.createHandPreview();
+  handController = window.createHandController({
+    onStateChange: updateHandUI,
+    videoElement: document.getElementById('hand-video'),
+    onFrame: handPreview.update,
+    onGesture: () => wakeFromHand()
   });
   soundController = window.createSoundController({
     onStateChange: updateSoundUI
@@ -558,31 +571,23 @@
     }
   });
 
-  micOnBtn.addEventListener('click', () => {
-    micController.start();
+  handOnBtn.addEventListener('click', () => {
+    handController.start();
   });
 
-  micOffBtn.addEventListener('click', () => {
-    micController.stop();
+  handOffBtn.addEventListener('click', () => {
+    handController.stop();
   });
 
-  soundButtons.forEach((button) => {
-    button.addEventListener('click', async () => {
-      const selectedLevel = button.dataset.sound;
-      const changed = await soundController.setLevel(selectedLevel);
-      if (!changed) return;
-      soundButtons.forEach((item) => {
-        const selected = item === button;
-        item.classList.toggle('is-selected', selected);
-        item.setAttribute('aria-pressed', String(selected));
-      });
-      soundValue.textContent = selectedLevel === 'off' ? 'OFF' : selectedLevel === 'soft' ? '작게' : '보통';
-    });
+  soundVolume.addEventListener('input', () => {
+    const volume = Number(soundVolume.value);
+    soundValue.textContent = `${volume} / 100`;
+    soundController.setVolume(volume);
   });
 
   window.addEventListener('pagehide', () => {
-    micController.stop();
-    soundController.setLevel('off');
+    handController.stop();
+    soundController.setVolume(0);
   });
 
   document.getElementById('reset-btn').addEventListener('click', () => {
@@ -593,7 +598,7 @@
     state.sessionRemainingMs = null;
     state.sessionEnded = false;
     state.endFadeProgress = 0;
-    state.strongBlowDuration = 0;
+    state.strongFanningDuration = 0;
     state.strongSparkCooldown = 0;
     state.skipNextDelta = true;
     particles.splice(0, particles.length);
@@ -640,33 +645,27 @@
     lastTimerText = text;
   }
 
-  function updateMicUI({ state: micState, message }) {
-    const active = micState === 'requesting' || micState === 'calibrating' || micState === 'on';
-    const unsupported = micState === 'unsupported';
+  function updateHandUI({ state: handState, message }) {
+    const active = ['requesting', 'loading', 'no-hand', 'still', 'slow', 'fast'].includes(handState);
+    const unsupported = handState === 'unsupported';
+    document.getElementById('hand-preview').hidden = !active;
 
-    micValue.textContent = active ? 'ON' : 'OFF';
-    micStatus.textContent = message;
-    micOnBtn.classList.toggle('is-selected', active);
-    micOffBtn.classList.toggle('is-selected', !active);
-    micOnBtn.setAttribute('aria-pressed', String(active));
-    micOffBtn.setAttribute('aria-pressed', String(!active));
-    micOnBtn.disabled = unsupported || active;
-    micOffBtn.disabled = unsupported || !active;
+    handValue.textContent = active ? 'ON' : 'OFF';
+    handStatus.textContent = message;
+    handOnBtn.classList.toggle('is-selected', active);
+    handOffBtn.classList.toggle('is-selected', !active);
+    handOnBtn.setAttribute('aria-pressed', String(active));
+    handOffBtn.setAttribute('aria-pressed', String(!active));
+    handOnBtn.disabled = unsupported || active;
+    handOffBtn.disabled = unsupported || !active;
   }
 
   function updateSoundUI({ state: soundState, message }) {
     soundStatus.textContent = message;
-    const unavailable = soundState === 'unavailable';
-    soundButtons.forEach((button) => {
-      button.disabled = unavailable && button.dataset.sound !== 'off';
-    });
-    if (soundState === 'error') {
-      soundValue.textContent = 'OFF';
-      soundButtons.forEach((button) => {
-        const selected = button.dataset.sound === 'off';
-        button.classList.toggle('is-selected', selected);
-        button.setAttribute('aria-pressed', String(selected));
-      });
+    soundVolume.disabled = soundState === 'unavailable';
+    if (['off', 'error', 'unavailable'].includes(soundState)) {
+      soundVolume.value = '0';
+      soundValue.textContent = '0 / 100';
     }
   }
 
